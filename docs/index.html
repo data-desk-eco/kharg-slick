@@ -27,21 +27,15 @@
   <script id="impact-map-h" type="text/markdown">
     ## Impact map
 
-    Spill extent across the three Sentinel-1 radar passes (cyan = 6 May, amber = 8 May, red = 9 May), set against the wider Persian Gulf and its oil and gas infrastructure. The 9 May fragments sit ~40 km south of Kharg, in shipping lanes used by tankers entering and leaving the terminal.
+    Spill extent across the Sentinel-1 radar passes and the 11 May Sentinel-2 sheen trace (dashed where SAR was unavailable), set against the wider Persian Gulf and its oil and gas infrastructure. Polygons are coloured by pass in chronological order. The 9 May fragments sit ~40 km south of Kharg, in shipping lanes used by tankers entering and leaving the terminal; by 11 May, a bright sheen band has tracked ~55 km south.
   </script>
 
   <script id="overview-map-html" type="text/html">
     <figure style="max-width:100%;">
       <div id="overview-map-container" style="width:100%; height:560px; border-radius:4px; background:#0a0a0a;"></div>
       <figcaption style="margin-top:8px;">
-        <div style="display:flex; gap:1.4em; flex-wrap:wrap; align-items:center; margin-bottom:6px;">
-          <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;background:#22d3ee;border-radius:2px;display:inline-block;"></span>6 May, 14:42 UTC</span>
-          <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;background:#f59e0b;border-radius:2px;display:inline-block;"></span>8 May, 02:38 UTC</span>
-          <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;background:#ef4444;border-radius:2px;display:inline-block;"></span>9 May, 02:38 UTC</span>
-          <span style="opacity:0.6;">·</span>
-          <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:2px;background:#00ff66;display:inline-block;"></span>pipelines, platforms &amp; terminals</span>
-        </div>
-        Slick polygons: Data Desk / Copernicus Sentinel-1. Infrastructure: © Mapstand. Basemap © OpenStreetMap contributors, © CARTO.
+        <div id="overview-map-legend" style="display:flex; gap:1.4em; flex-wrap:wrap; align-items:center; margin-bottom:6px;"></div>
+        Slick polygons: Data Desk / Copernicus Sentinel-1 + Sentinel-2. Infrastructure: © Mapstand. Basemap © OpenStreetMap contributors, © CARTO.
       </figcaption>
     </figure>
   </script>
@@ -56,15 +50,36 @@
       document.head.appendChild(link);
     }
     const maplibre = (await import("https://esm.sh/maplibre-gl@4.7.1")).default;
+    const Plot = await import("https://esm.sh/@observablehq/plot");
+    const d3sc = await import("https://esm.sh/d3-scale-chromatic@3");
     const fc = await FileAttachment("../data/slicks.geojson").json();
     const infra = await FileAttachment("../data/infrastructure.geojson").json();
 
-    const COLOURS = {
-      "2026-05-06": "#22d3ee",
-      "2026-05-08": "#f59e0b",
-      "2026-05-09": "#ef4444",
-      "2026-05-11": "#a855f7",
-    };
+    // One colour per pass (date + sensor), sampled from the turbo spectrum so
+    // the palette extends gracefully as more passes are added. The sampled
+    // range is clipped to [0.15, 0.85] to avoid turbo's very dark blue start
+    // and very dark red end, which both vanish against a dark basemap.
+    const passKey = f => `${f.properties.date}|${f.properties.sensor}`;
+    const passes = [...new Map(
+      [...fc.features]
+        .sort((a, b) => a.properties.sensing_time.localeCompare(b.properties.sensing_time))
+        .map(f => [passKey(f), {
+          key: passKey(f),
+          date: f.properties.date,
+          sensor: f.properties.sensor,
+          sensing_time: f.properties.sensing_time,
+          kind: f.properties.kind,
+        }])
+    ).values()];
+    const colourRange = passes.map((_, i) =>
+      d3sc.interpolateTurbo(passes.length === 1 ? 0.5 : 0.15 + 0.7 * (i / (passes.length - 1)))
+    );
+    const colourScale = Plot.scale({color: {
+      type: "ordinal",
+      domain: passes.map(p => p.key),
+      range: colourRange,
+    }});
+    const colourFor = key => colourScale.apply(key);
 
     const map = new maplibre.Map({
       container: "overview-map-container",
@@ -111,25 +126,29 @@
       });
 
       map.addSource("slicks", { type: "geojson", data: fc });
-      const dates = [...new Set(fc.features.map(f => f.properties.date))].sort();
-      for (const d of dates) {
-        const colour = COLOURS[d] ?? "#ffffff";
-        const coreFilter = ["all", ["==", ["get", "date"], d], ["==", ["get", "kind"], "core"]];
-        const sheenFilter = ["all", ["==", ["get", "date"], d], ["==", ["get", "kind"], "sheen"]];
+      for (const p of passes) {
+        const colour = colourFor(p.key);
+        const filt = ["all",
+          ["==", ["get", "date"], p.date],
+          ["==", ["get", "sensor"], p.sensor],
+        ];
+        const coreFilter = ["all", filt, ["==", ["get", "kind"], "core"]];
+        const sheenFilter = ["all", filt, ["==", ["get", "kind"], "sheen"]];
+        const safe = p.key.replace(/[^a-z0-9]/gi, "_");
         map.addLayer({
-          id: `core-fill-${d}`, type: "fill", source: "slicks", filter: coreFilter,
+          id: `core-fill-${safe}`, type: "fill", source: "slicks", filter: coreFilter,
           paint: { "fill-color": colour, "fill-opacity": 0.55 },
         });
         map.addLayer({
-          id: `core-line-${d}`, type: "line", source: "slicks", filter: coreFilter,
+          id: `core-line-${safe}`, type: "line", source: "slicks", filter: coreFilter,
           paint: { "line-color": colour, "line-width": 1.0, "line-opacity": 0.95 },
         });
         map.addLayer({
-          id: `sheen-fill-${d}`, type: "fill", source: "slicks", filter: sheenFilter,
+          id: `sheen-fill-${safe}`, type: "fill", source: "slicks", filter: sheenFilter,
           paint: { "fill-color": colour, "fill-opacity": 0.15 },
         });
         map.addLayer({
-          id: `sheen-line-${d}`, type: "line", source: "slicks", filter: sheenFilter,
+          id: `sheen-line-${safe}`, type: "line", source: "slicks", filter: sheenFilter,
           paint: {
             "line-color": colour, "line-width": 1.4, "line-opacity": 0.95,
             "line-dasharray": [2, 2],
@@ -137,12 +156,43 @@
         });
       }
     });
+
+    // Build the legend from the same passes + colour scale that paint the map.
+    const legendEl = document.getElementById("overview-map-legend");
+    const fmt = new Intl.DateTimeFormat("en-GB", {day: "numeric", month: "short", timeZone: "UTC"});
+    const passKinds = new Map();
+    for (const f of fc.features) {
+      const k = passKey(f);
+      if (!passKinds.has(k)) passKinds.set(k, new Set());
+      passKinds.get(k).add(f.properties.kind);
+    }
+    const items = passes.map(p => {
+      const t = new Date(Math.round(new Date(p.sensing_time).getTime() / 60000) * 60000);
+      const hh = String(t.getUTCHours()).padStart(2, "0");
+      const mm = String(t.getUTCMinutes()).padStart(2, "0");
+      const date = fmt.format(t);
+      const isSheen = passKinds.get(p.key)?.has("sheen") && !passKinds.get(p.key)?.has("core");
+      const label = `${date}, ${hh}:${mm} UTC (${isSheen ? "S2 sheen" : "SAR"})`;
+      const colour = colourFor(p.key);
+      const swatch = isSheen
+        ? `border:1.5px dashed ${colour};`
+        : `background:${colour};`;
+      return `<span style="display:inline-flex;align-items:center;gap:6px;">
+        <span style="width:14px;height:14px;${swatch};border-radius:2px;display:inline-block;"></span>
+        ${label}
+      </span>`;
+    });
+    items.push(
+      `<span style="opacity:0.6;">·</span>`,
+      `<span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:2px;background:#00ff66;display:inline-block;"></span>pipelines, platforms &amp; terminals</span>`,
+    );
+    legendEl.innerHTML = items.join("");
   </script>
 
   <script id="6may-s2-h" type="text/markdown">
     ## 6 May, 07:16 UTC — first sighting
 
-    Bright white streaks extend west and southwest of Kharg in the morning Sentinel-2 image, where a thin oil film has smoothed the sea surface enough to reflect sunlight directly back at the satellite.
+    Bright white streaks extend west and southwest of Kharg in the morning Sentinel-2 image, where surface oil, organised into wind-driven convergence lines, brightens against the surrounding sea in this sun-glint–favourable geometry. The brightest cores may include thicker emulsified material.
   </script>
   <script id="6may-s2" type="text/html">
     <figure style="max-width:100%">
@@ -154,7 +204,7 @@
   <script id="6may-s1-h" type="text/markdown">
     ## 6 May, 14:42 UTC — radar confirmation
 
-    Seven and a half hours later, the Sentinel-1 radar pass confirms an oil slick: a coherent dark patch extending about 15 km south of Kharg, with a tail curving further south. The dark area sits directly over the dense cluster of offshore platforms immediately west and southwest of the island, consistent with a source somewhere in the working part of the Kharg field. The bright dots scattered around are tankers and other vessels at anchor.
+    Seven and a half hours later, the Sentinel-1 radar pass confirms an oil slick: a coherent dark patch extending about 15 km south of Kharg, with a tail curving further south. The dark area sits directly over the dense cluster of offshore platforms immediately west and southwest of the island. The bright dots scattered around are tankers and other vessels at anchor.
   </script>
   <script id="6may-s1" type="text/html">
     <figure style="max-width:100%">
@@ -200,9 +250,9 @@
   </script>
 
   <script id="11may-s2-h" type="text/markdown">
-    ## 11 May, 07:16 UTC — residual sheen
+    ## 11 May, 07:16 UTC — slick still tracking south
 
-    Today's Sentinel-2 capture is heavily clouded over the southern Gulf, where the bulk of the displaced slick was last seen. Near the island itself, however, sinuous reflective filaments of oil sheen are clearly visible immediately south of Kharg's southern shore, suggesting that oil is still being released, or accumulating, at the source. The next clean radar pass will be needed to map what remains further south.
+    Heavy cloud obscures Kharg's immediate vicinity, but breaks in cover further south reveal that the displaced slick is still tracking south. A bright, comma-shaped band of sheen is clearly visible around 28.75°N — roughly 55 km south of the island — with a fainter secondary swirl just below it. Closer in, sinuous reflective filaments are visible immediately south of Kharg's southern shore, suggesting that oil is still being released, or accumulating, at the source.
   </script>
   <script id="11may-s2" type="text/html">
     <figure style="max-width:100%">
@@ -214,7 +264,7 @@
   <script id="method-h" type="text/markdown">
     ---
 
-    *Imagery from the [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/). Infrastructure data: © [Mapstand](https://www.mapstand.com/). Slick polygons derived by automated SAR thresholding; full pipeline and source in this repository.*
+    *Imagery from the [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/). Infrastructure data: © [Mapstand](https://www.mapstand.com/). Slick polygons derived by automated SAR thresholding, with manual sheen traces from Sentinel-2 true colour where SAR was unavailable; full pipeline and source in this repository.*
   </script>
 
   <script id="duckdb" type="module">

@@ -70,7 +70,7 @@ SLICKS = ROOT / "data" / "slicks.geojson"
 
 # Wider AOI used for slick segmentation — fixed across all S1 scenes so the
 # resulting polygons live in a common reference frame for the overview map.
-SEGMENT_AOI = dict(west=49.85, south=28.55, east=50.55, north=29.40)
+SEGMENT_AOI = dict(west=49.85, south=28.40, east=50.55, north=29.40)
 SEGMENT_RES_M = 50.0
 
 # Output projection — UTM zone 39N covers all of the AOI.
@@ -93,17 +93,24 @@ CATALOG_AOI = dict(west=50.00, south=28.75, east=50.45, north=29.40)
 MAPSTAND_AOI = dict(west=47.5, south=23.0, east=57.0, north=30.5)
 MAPSTAND_TILE_M = 200_000  # 200 km tiles in EPSG:3857
 
-# The render AOI is derived programmatically from the union of detected slick
-# polygons plus Kharg Island, padded outwards — so every scene is framed
-# consistently around the actual observed extent of the spill.
+# Each scene's render AOI is computed individually as the bounding box of Kharg
+# Island plus all slick polygons sensed at or before that scene, padded outwards.
+# This makes the sequence widen monotonically southward as the slick is observed
+# and tracked: the earliest scene shows just the island vicinity, later scenes
+# add the SAR-derived cores and the 11 May S2 sheen further south.
 KHARG_LON, KHARG_LAT = 50.32, 29.25
-AOI_PAD_DEG = 0.025  # ~2.5 km
+KHARG_BUF_DEG = 0.06    # ~6 km — minimum AOI radius around Kharg for early scenes
+AOI_PAD_DEG = 0.025     # ~2.5 km
 
 START = "2026-05-04T00:00:00.000Z"
 END = (datetime.now(timezone.utc).replace(hour=23, minute=59, second=59).strftime("%Y-%m-%dT%H:%M:%S.000Z"))
 
-# Output pixel density (m/pixel) — pixel dimensions are computed per framing.
-TARGET_M_PER_PX = 35.0
+# Output rendering targets ~TARGET_PX_LONG pixels on its longer axis so every
+# scene displays at similar fidelity in the notebook. Smaller AOIs render at
+# finer m/px (close to native S2/S1 ground sampling); larger AOIs downsample.
+# Without this, a 17×17 km AOI was rendering at ~475 px and getting upscaled
+# by the browser, making gridline labels huge and pipelines blurry.
+TARGET_PX_LONG = 1400
 
 S3_ENDPOINT = "https://eodata.dataspace.copernicus.eu"
 ODATA = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
@@ -197,11 +204,17 @@ def download(s3, key: str, dest: Path) -> Path:
     return dest
 
 
-def compute_aoi(slick_features: list[dict]) -> dict:
-    """Bounds of all slick geometries plus Kharg, padded by AOI_PAD_DEG."""
-    geoms = [shapely_shape(f["geometry"]) for f in slick_features]
-    geoms.append(Point(KHARG_LON, KHARG_LAT).buffer(0.012))  # ~1.3 km buffer round Kharg
-    union = unary_union(geoms)
+def compute_scene_aoi(sensing_time: str, slick_features: list[dict]) -> dict:
+    """AOI for one scene: bounding box of Kharg plus all slick polygons sensed
+    at or before this scene's time, padded by AOI_PAD_DEG. The earliest scene
+    sees no prior polygons and frames just the island vicinity; each subsequent
+    scene's AOI is at least as large as the previous one."""
+    relevant = [
+        shapely_shape(f["geometry"]) for f in slick_features
+        if f["properties"]["sensing_time"] <= sensing_time
+    ]
+    relevant.append(Point(KHARG_LON, KHARG_LAT).buffer(KHARG_BUF_DEG))
+    union = unary_union(relevant)
     xmin, ymin, xmax, ymax = union.bounds
     return dict(
         west=xmin - AOI_PAD_DEG,
@@ -212,32 +225,81 @@ def compute_aoi(slick_features: list[dict]) -> dict:
 
 
 def render_size(aoi: dict) -> tuple[int, int]:
-    """Pixel dimensions for an AOI at TARGET_M_PER_PX."""
+    """Pixel dimensions for an AOI — the longer axis is TARGET_PX_LONG, the
+    shorter axis is scaled to preserve the AOI's aspect ratio in UTM."""
     utm_w, utm_s, utm_e, utm_n = transform_bounds(
         "EPSG:4326", DST_CRS, aoi["west"], aoi["south"], aoi["east"], aoi["north"]
     )
-    return (
-        int(round((utm_e - utm_w) / TARGET_M_PER_PX)),
-        int(round((utm_n - utm_s) / TARGET_M_PER_PX)),
+    w_m = utm_e - utm_w
+    h_m = utm_n - utm_s
+    if w_m >= h_m:
+        return TARGET_PX_LONG, int(round(TARGET_PX_LONG * h_m / w_m))
+    return int(round(TARGET_PX_LONG * w_m / h_m)), TARGET_PX_LONG
+
+
+def s2_companion(item: dict) -> dict | None:
+    """Look up the T39RVM companion product (same R006 sensing time) so S2
+    renders can be mosaicked across both tiles and reach south of ~28.84°N."""
+    name = item["Name"]
+    if "_T39RVN_" not in name:
+        return None
+    sensing_minute = item["ContentDate"]["Start"][:16]
+    flt = (
+        f"Collection/Name eq 'SENTINEL-2' and contains(Name,'MSIL2A') "
+        f"and contains(Name,'_T39RVM_') and contains(Name,'_R006_') "
+        f"and ContentDate/Start ge {sensing_minute}:00.000Z "
+        f"and ContentDate/Start lt {sensing_minute}:59.999Z"
     )
+    results = odata_query(flt)
+    return results[0] if results else None
 
 
 def render_s2(s3, item: dict, cache: Path, aoi: dict) -> np.ndarray | None:
-    """Sentinel-2 L2A: clip the pre-computed True Color Image (TCI) to AOI."""
-    safe_prefix = item["S3Path"].lstrip("/").replace("eodata/", "") + "/"
-    keys = list_s3(s3, safe_prefix + "GRANULE/")
-    tci = next((k for k in keys if k.endswith("TCI_10m.jp2")), None)
-    if not tci:
-        print(f"  ! no TCI band found for {item['Name']}")
-        return None
-    local = download(s3, tci, cache / Path(tci).name)
+    """Sentinel-2 L2A: clip the pre-computed True Color Image (TCI) to AOI,
+    mosaicked with the southern companion tile (T39RVM) when the AOI extends
+    below T39RVN's southern edge (~28.84°N)."""
+    products = [item]
+    comp = s2_companion(item)
+    if comp is not None:
+        products.append(comp)
+
     out_w, out_h = render_size(aoi)
-    with rasterio.open(local) as src:
-        win_bounds = transform_bounds(
-            "EPSG:4326", src.crs, aoi["west"], aoi["south"], aoi["east"], aoi["north"]
-        )
-        window = from_bounds(*win_bounds, transform=src.transform)
-        rgb = src.read(window=window, out_shape=(3, out_h, out_w), resampling=Resampling.bilinear)
+    dst_w, dst_s, dst_e, dst_n = transform_bounds(
+        "EPSG:4326", DST_CRS, aoi["west"], aoi["south"], aoi["east"], aoi["north"]
+    )
+    dst_transform = rasterio.transform.from_bounds(dst_w, dst_s, dst_e, dst_n, out_w, out_h)
+    rgb = np.zeros((3, out_h, out_w), dtype=np.uint8)
+    coverage = np.zeros((out_h, out_w), dtype=bool)
+
+    for prod in products:
+        safe_prefix = prod["S3Path"].lstrip("/").replace("eodata/", "") + "/"
+        keys = list_s3(s3, safe_prefix + "GRANULE/")
+        tci = next((k for k in keys if k.endswith("TCI_10m.jp2")), None)
+        if not tci:
+            continue
+        local = download(s3, tci, cache / Path(tci).name)
+        tile_arr = np.zeros((3, out_h, out_w), dtype=np.uint8)
+        with rasterio.open(local) as src:
+            for band in range(1, 4):
+                reproject(
+                    source=rasterio.band(src, band),
+                    destination=tile_arr[band - 1],
+                    src_crs=src.crs,
+                    src_transform=src.transform,
+                    dst_crs=DST_CRS,
+                    dst_transform=dst_transform,
+                    resampling=Resampling.bilinear,
+                    src_nodata=0,
+                    dst_nodata=0,
+                )
+        tm = (tile_arr[0] > 5) & (tile_arr[1] > 5) & (tile_arr[2] > 5)
+        new = tm & ~coverage
+        for c in range(3):
+            rgb[c][new] = tile_arr[c][new]
+        coverage |= tm
+
+    if not coverage.any():
+        return None
     img = rgb.astype(np.float32) / 255.0
     img = np.clip(img * 1.35, 0, 1) ** 0.85
     return (img * 255).astype(np.uint8).transpose(1, 2, 0)
@@ -420,13 +482,36 @@ def fetch_infrastructure() -> dict:
 
 OVERLAY_COLOR = "#00ff66"  # bright green for Mapstand vectors
 
-# Manual sheen tracing from S2 turned out to be too noisy to be useful — the
-# 6 May morning S2 sheen is essentially the same footprint as the afternoon
-# SAR core a few hours later, and the 11 May S2 sheen is filamentary and
-# largely obscured by cloud cover. The map therefore shows only SAR-derived
-# core slick polygons; the S2 observations are covered narratively in the
-# day-by-day sections.
-MANUAL_SHEENS: dict[tuple[str, str], list[list[list[float]]]] = {}
+# Manual sheen traces from Sentinel-2 imagery, loaded from per-date GeoJSON
+# files in data/. Used sparingly: only added where the S2 sheen gives
+# information the SAR doesn't. Each file is a FeatureCollection of Polygon
+# features; the outer ring of each Polygon becomes one sheen polygon for the
+# given (date, sensor) pair.
+MANUAL_SHEEN_FILES: dict[tuple[str, str], str] = {
+    ("2026-05-11", "Sentinel-2"): "may-11-georef.geojson",
+}
+
+
+def load_manual_sheens() -> dict[tuple[str, str], list[list[list[float]]]]:
+    out: dict[tuple[str, str], list[list[list[float]]]] = {}
+    for key, filename in MANUAL_SHEEN_FILES.items():
+        path = ROOT / "data" / filename
+        if not path.exists():
+            continue
+        gj = json.loads(path.read_text())
+        rings: list[list[list[float]]] = []
+        for feat in gj.get("features", []):
+            geom = feat.get("geometry") or {}
+            if geom.get("type") == "Polygon":
+                rings.append(geom["coordinates"][0])
+            elif geom.get("type") == "MultiPolygon":
+                for poly in geom["coordinates"]:
+                    rings.append(poly[0])
+        out[key] = rings
+    return out
+
+
+MANUAL_SHEENS = load_manual_sheens()
 
 
 def segment_s1(s3, item: dict, cache: Path) -> list[dict]:
@@ -526,11 +611,32 @@ def segment_s1(s3, item: dict, cache: Path) -> list[dict]:
 
 
 def composite(raster: np.ndarray, aoi: dict, infra: dict, path: Path) -> None:
-    """Render the raster with a 0.1° lat/lon graticule and Mapstand overlay."""
-    out_h, out_w = raster.shape[:2]
+    """Render the raster with a 0.1° lat/lon graticule and Mapstand overlay.
+    The raster is first cropped to its actual data extent — graticule and
+    Mapstand vectors are then drawn over the cropped imagery, never over the
+    no-data margins where tile mosaics or SAR swaths don't reach."""
+    full_h, full_w = raster.shape[:2]
     utm_w, utm_s, utm_e, utm_n = transform_bounds(
         "EPSG:4326", DST_CRS, aoi["west"], aoi["south"], aoi["east"], aoi["north"]
     )
+    valid = (raster > 0).any(axis=2) if raster.ndim == 3 else (raster > 0)
+    if not valid.any():
+        return
+    rows = np.where(np.any(valid, axis=1))[0]
+    cols = np.where(np.any(valid, axis=0))[0]
+    rmin, rmax = int(rows[0]), int(rows[-1])
+    cmin, cmax = int(cols[0]), int(cols[-1])
+    raster = raster[rmin : rmax + 1, cmin : cmax + 1]
+    out_h, out_w = raster.shape[:2]
+    utm_per_px_x = (utm_e - utm_w) / full_w
+    utm_per_px_y = (utm_n - utm_s) / full_h
+    utm_w_c = utm_w + cmin * utm_per_px_x
+    utm_e_c = utm_w + (cmax + 1) * utm_per_px_x
+    utm_n_c = utm_n - rmin * utm_per_px_y
+    utm_s_c = utm_n - (rmax + 1) * utm_per_px_y
+    utm_w, utm_e, utm_s, utm_n = utm_w_c, utm_e_c, utm_s_c, utm_n_c
+    wgs_w, wgs_s, wgs_e, wgs_n = transform_bounds(DST_CRS, "EPSG:4326", utm_w, utm_s, utm_e, utm_n)
+    aoi = dict(west=wgs_w, south=wgs_s, east=wgs_e, north=wgs_n)
     to_utm = Transformer.from_crs("EPSG:4326", DST_CRS, always_xy=True)
 
     fig = plt.figure(figsize=(out_w / 200, out_h / 200), dpi=200)
@@ -680,14 +786,7 @@ def main() -> int:
     }))
     print(f"Wrote {SLICKS.relative_to(ROOT)} with {len(slick_features)} slick polygons.")
 
-    # --- Compute common AOI from slick polygon union + Kharg --------------
-    aoi = compute_aoi(slick_features)
-    print(
-        f"Common render AOI: {aoi['west']:.3f}–{aoi['east']:.3f}°E, "
-        f"{aoi['south']:.3f}–{aoi['north']:.3f}°N"
-    )
-
-    # --- Pass 2: render every scene at the common AOI ---------------------
+    # --- Pass 2: render every scene at its own per-scene AOI --------------
     scenes: list[Scene] = []
     for item in unique:
         sensing = item["ContentDate"]["Start"]
@@ -699,7 +798,12 @@ def main() -> int:
         png_name = f"{date}_{platform}_{name.split('_')[5] if sensor == 'Sentinel-2' else name.split('_')[7]}.png"
         png_path = ASSETS / png_name
 
-        print(f"[{sensing}] {platform} {sensor}")
+        aoi = compute_scene_aoi(sensing, slick_features)
+        print(
+            f"[{sensing}] {platform} {sensor}  "
+            f"AOI {aoi['west']:.3f}–{aoi['east']:.3f}°E, "
+            f"{aoi['south']:.3f}–{aoi['north']:.3f}°N"
+        )
         if png_path.exists() and png_path.stat().st_size > 0:
             print(f"  - cached {png_path.name}")
         else:
