@@ -1,0 +1,17 @@
+name: Deploy notebook
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    uses: data-desk-eco/workflows/.github/workflows/notebook-deploy.yml@main
+    with:
+      skip_data: true
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    secrets: inherit

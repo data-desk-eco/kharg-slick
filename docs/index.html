@@ -1,0 +1,223 @@
+<!doctype html>
+<notebook theme="midnight">
+  <title>May 2026 Kharg oil slick</title>
+
+  <script id="header" type="text/markdown">
+    # May 2026 Kharg oil slick
+    *11 May 2026*
+  </script>
+
+  <script id="intro" type="text/markdown">
+    On 8 May 2026, [Reuters reported](https://www.reuters.com/world/middle-east/suspected-oil-spill-seen-satellite-images-near-irans-kharg-island-export-hub-2026-05-08/) on a suspected oil spill at Iran's main crude export terminal at Kharg Island, based on initial analysis by Data Desk and the [Conflict and Environment Observatory (CEOBS)](https://ceobs.org/). This briefing reviews the full Copernicus Sentinel-2 (optical) and Sentinel-1 (radar) record between 6 and 11 May 2026 to track the spill's progression.
+
+    In summary: a coherent oil slick is first visible on 6 May, by which point the spill is already several hours old. It expands to roughly 25 km of dark, oil-dampened water south of the island by 8 May, breaks up and drifts a further 30–50 km south through 9 May, and is no longer fully visible after that point due to heavy cloud cover, although residual oil sheen remains clearly identifiable in the waters immediately around Kharg as of this morning. For automated, continuous tracking of slicks of this kind, SkyTruth's [Cerulean](https://cerulean.skytruth.org/) platform is a useful complementary resource.
+
+    ### Satellite passes
+
+    - **[6 May, 07:16 UTC](#6-may-07-16-utc-first-sighting)** — Sentinel-2C (optical)
+    - **[6 May, 14:42 UTC](#6-may-14-42-utc-radar-confirmation)** — Sentinel-1A (radar)
+    - **[8 May, 02:38 UTC](#8-may-02-38-utc-peak-extent)** — Sentinel-1C (radar)
+    - **[8 May, 07:23 UTC](#8-may-07-23-utc-clouded-optical-pass)** — Sentinel-2A (optical)
+    - **[9 May, 02:38 UTC](#9-may-02-38-utc-drift-south)** — Sentinel-1D (radar)
+    - **[11 May, 07:16 UTC](#11-may-07-16-utc-residual-sheen)** — Sentinel-2B (optical)
+
+    ---
+  </script>
+
+  <script id="impact-map-h" type="text/markdown">
+    ## Impact map
+
+    Spill extent across the three Sentinel-1 radar passes (cyan = 6 May, amber = 8 May, red = 9 May), set against the wider Persian Gulf and its oil and gas infrastructure. The 9 May fragments sit ~40 km south of Kharg, in shipping lanes used by tankers entering and leaving the terminal.
+  </script>
+
+  <script id="overview-map-html" type="text/html">
+    <figure style="max-width:100%;">
+      <div id="overview-map-container" style="width:100%; height:560px; border-radius:4px; background:#0a0a0a;"></div>
+      <figcaption style="margin-top:8px;">
+        <div style="display:flex; gap:1.4em; flex-wrap:wrap; align-items:center; margin-bottom:6px;">
+          <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;background:#22d3ee;border-radius:2px;display:inline-block;"></span>6 May, 14:42 UTC</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;background:#f59e0b;border-radius:2px;display:inline-block;"></span>8 May, 02:38 UTC</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;background:#ef4444;border-radius:2px;display:inline-block;"></span>9 May, 02:38 UTC</span>
+          <span style="opacity:0.6;">·</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:2px;background:#00ff66;display:inline-block;"></span>pipelines, platforms &amp; terminals</span>
+        </div>
+        Slick polygons: Data Desk / Copernicus Sentinel-1. Infrastructure: © Mapstand. Basemap © OpenStreetMap contributors, © CARTO.
+      </figcaption>
+    </figure>
+  </script>
+
+  <script id="overview-map-js" type="module">
+    const cssId = "maplibre-css";
+    if (!document.getElementById(cssId)) {
+      const link = document.createElement("link");
+      link.id = cssId;
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css";
+      document.head.appendChild(link);
+    }
+    const maplibre = (await import("https://esm.sh/maplibre-gl@4.7.1")).default;
+    const fc = await FileAttachment("../data/slicks.geojson").json();
+    const infra = await FileAttachment("../data/infrastructure.geojson").json();
+
+    const COLOURS = {
+      "2026-05-06": "#22d3ee",
+      "2026-05-08": "#f59e0b",
+      "2026-05-09": "#ef4444",
+      "2026-05-11": "#a855f7",
+    };
+
+    const map = new maplibre.Map({
+      container: "overview-map-container",
+      style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+      bounds: [[49.081421, 28.488005], [51.317139, 29.645095]],
+      fitBoundsOptions: { padding: 24, animate: false },
+      attributionControl: false,
+    });
+
+    map.on("load", () => {
+      map.addSource("infra", { type: "geojson", data: infra });
+      map.addLayer({
+        id: "infra-pipeline",
+        type: "line",
+        source: "infra",
+        filter: ["==", ["get", "kind"], "pipeline"],
+        paint: { "line-color": "#00ff66", "line-width": 0.8, "line-opacity": 0.7 },
+      });
+      map.addLayer({
+        id: "infra-platform",
+        type: "circle",
+        source: "infra",
+        filter: ["==", ["get", "kind"], "platform"],
+        paint: {
+          "circle-radius": 2.2,
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-color": "#00ff66",
+          "circle-stroke-width": 0.8,
+          "circle-stroke-opacity": 0.85,
+        },
+      });
+      map.addLayer({
+        id: "infra-terminal",
+        type: "circle",
+        source: "infra",
+        filter: ["==", ["get", "kind"], "terminal"],
+        paint: {
+          "circle-radius": 4.5,
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-color": "#00ff66",
+          "circle-stroke-width": 1.2,
+          "circle-stroke-opacity": 0.95,
+        },
+      });
+
+      map.addSource("slicks", { type: "geojson", data: fc });
+      const dates = [...new Set(fc.features.map(f => f.properties.date))].sort();
+      for (const d of dates) {
+        const colour = COLOURS[d] ?? "#ffffff";
+        const coreFilter = ["all", ["==", ["get", "date"], d], ["==", ["get", "kind"], "core"]];
+        const sheenFilter = ["all", ["==", ["get", "date"], d], ["==", ["get", "kind"], "sheen"]];
+        map.addLayer({
+          id: `core-fill-${d}`, type: "fill", source: "slicks", filter: coreFilter,
+          paint: { "fill-color": colour, "fill-opacity": 0.55 },
+        });
+        map.addLayer({
+          id: `core-line-${d}`, type: "line", source: "slicks", filter: coreFilter,
+          paint: { "line-color": colour, "line-width": 1.0, "line-opacity": 0.95 },
+        });
+        map.addLayer({
+          id: `sheen-fill-${d}`, type: "fill", source: "slicks", filter: sheenFilter,
+          paint: { "fill-color": colour, "fill-opacity": 0.15 },
+        });
+        map.addLayer({
+          id: `sheen-line-${d}`, type: "line", source: "slicks", filter: sheenFilter,
+          paint: {
+            "line-color": colour, "line-width": 1.4, "line-opacity": 0.95,
+            "line-dasharray": [2, 2],
+          },
+        });
+      }
+    });
+  </script>
+
+  <script id="6may-s2-h" type="text/markdown">
+    ## 6 May, 07:16 UTC — first sighting
+
+    Bright white streaks extend west and southwest of Kharg in the morning Sentinel-2 image, where a thin oil film has smoothed the sea surface enough to reflect sunlight directly back at the satellite.
+  </script>
+  <script id="6may-s2" type="text/html">
+    <figure style="max-width:100%">
+      <img src="assets/scenes/2026-05-06_S2C_T39RVN.png" width="100%" />
+      <figcaption>Sentinel-2C, 6 May 2026, 07:16 UTC. © ESA/Copernicus.</figcaption>
+    </figure>
+  </script>
+
+  <script id="6may-s1-h" type="text/markdown">
+    ## 6 May, 14:42 UTC — radar confirmation
+
+    Seven and a half hours later, the Sentinel-1 radar pass confirms an oil slick: a coherent dark patch extending about 15 km south of Kharg, with a tail curving further south. The dark area sits directly over the dense cluster of offshore platforms immediately west and southwest of the island, consistent with a source somewhere in the working part of the Kharg field. The bright dots scattered around are tankers and other vessels at anchor.
+  </script>
+  <script id="6may-s1" type="text/html">
+    <figure style="max-width:100%">
+      <img src="assets/scenes/2026-05-06_S1A_081C09.png" width="100%" />
+      <figcaption>Sentinel-1A, 6 May 2026, 14:42 UTC. © ESA/Copernicus.</figcaption>
+    </figure>
+  </script>
+
+  <script id="8may-s1-h" type="text/markdown">
+    ## 8 May, 02:38 UTC — peak extent
+
+    Thirty-six hours later, the slick has grown markedly. The main dark area now extends about 25 km in length, with its southernmost edge roughly 30 km south of Kharg. A separate, smaller plume east of the island appears to trail behind a vessel and may indicate a second, independent source.
+  </script>
+  <script id="8may-s1" type="text/html">
+    <figure style="max-width:100%">
+      <img src="assets/scenes/2026-05-08_S1C_00F57D.png" width="100%" />
+      <figcaption>Sentinel-1C, 8 May 2026, 02:38 UTC. © ESA/Copernicus.</figcaption>
+    </figure>
+  </script>
+
+  <script id="8may-s2-h" type="text/markdown">
+    ## 8 May, 07:23 UTC — clouded optical pass
+
+    Five hours after the radar image, the Sentinel-2 capture of the same area is largely obscured by cloud. A brown discolouration is still visible curving away from Kharg's southwestern shore — directly over the area the radar identified as the centre of the slick — but the heavy cloud cover prevents an independent estimate of the southern extent.
+  </script>
+  <script id="8may-s2" type="text/html">
+    <figure style="max-width:100%">
+      <img src="assets/scenes/2026-05-08_S2A_T39RVN.png" width="100%" />
+      <figcaption>Sentinel-2A, 8 May 2026, 07:23 UTC. © ESA/Copernicus.</figcaption>
+    </figure>
+  </script>
+
+  <script id="9may-s1-h" type="text/markdown">
+    ## 9 May, 02:38 UTC — drift south
+
+    By the next radar pass, the slick has broken into several discrete patches strung out 30–50 km south and southwest of Kharg, with smaller filaments trailing further. The total area of oil-affected water is comparable to that on 8 May — the spill has translated south and thinned, not dispersed. The fragments now sit in waters routinely used by tankers calling at the terminal.
+  </script>
+  <script id="9may-s1" type="text/html">
+    <figure style="max-width:100%">
+      <img src="assets/scenes/2026-05-09_S1D_00489C.png" width="100%" />
+      <figcaption>Sentinel-1D, 9 May 2026, 02:38 UTC. © ESA/Copernicus.</figcaption>
+    </figure>
+  </script>
+
+  <script id="11may-s2-h" type="text/markdown">
+    ## 11 May, 07:16 UTC — residual sheen
+
+    Today's Sentinel-2 capture is heavily clouded over the southern Gulf, where the bulk of the displaced slick was last seen. Near the island itself, however, sinuous reflective filaments of oil sheen are clearly visible immediately south of Kharg's southern shore, suggesting that oil is still being released, or accumulating, at the source. The next clean radar pass will be needed to map what remains further south.
+  </script>
+  <script id="11may-s2" type="text/html">
+    <figure style="max-width:100%">
+      <img src="assets/scenes/2026-05-11_S2B_T39RVN.png" width="100%" />
+      <figcaption>Sentinel-2B, 11 May 2026, 07:16 UTC. © ESA/Copernicus.</figcaption>
+    </figure>
+  </script>
+
+  <script id="method-h" type="text/markdown">
+    ---
+
+    *Imagery from the [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/). Infrastructure data: © [Mapstand](https://www.mapstand.com/). Slick polygons derived by automated SAR thresholding; full pipeline and source in this repository.*
+  </script>
+
+  <script id="duckdb" type="module">
+    const db = DuckDBClient.of();
+  </script>
+</notebook>

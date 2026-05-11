@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style type="text/css">
+      @import url("observable:styles/index.css");
+      @import url("https://rsms.me/inter/inter.css");
+
+      :root {
+        font-family: Inter, sans-serif;
+        font-feature-settings: 'liga' 1, 'calt' 1;
+      }
+
+      @supports (font-variation-settings: normal) {
+        :root { font-family: InterVariable, sans-serif; }
+      }
+
+      svg#logo {
+        width: 50px;
+        fill: white;
+        float: right;
+        margin-left: 20px;
+      }
+
+      p#footer {
+        font-size: 14px;
+      }
+
+      p a, figcaption a, ul a {
+        color: inherit !important;
+        text-decoration: underline !important;
+      }
+
+      h1, h2, h3, h4, h5, h6 {
+        color: var(--theme-foreground) !important;
+      }
+
+      ul {
+        list-style-type: none;
+        padding-left: 0;
+      }   
+
+      ul > li {
+        position: relative;
+        padding-left: 1.2em;
+      }
+
+      ul > li::before {
+        content: "\3e";
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+      
+      /* Override Observable's 640px max-width for full-width elements */
+      figure.full-width, figcaption.full-width, p.full-width {
+        max-width: none;
+      }
+
+      figure.full-width figcaption {
+        margin-top: 10px;
+      }
+
+      /* Hero image styles */
+      figure.hero {
+        max-width: 100%;
+        margin: 0 0 2rem 0;
+      }
+
+      figure.hero img {
+        width: 100%;
+        aspect-ratio: 3 / 1;
+        object-fit: cover;
+        object-position: center 40%;
+      }
+</style>
+  </head>
+  <body>
+    <main>
+      <a href="https://research.datadesk.eco/">
+        <svg id="logo" viewBox="0 0 734.66 733.34">
+          <g>
+            <path d="M144.68,0c-4.92,0-9.63,1.99-13.05,5.52L4.17,136.69C1.49,139.44,0,143.12,0,146.96v440.75c-.01,3.83,1.54,7.6,4.22,10.32l128.48,130.9c2.77,2.82,6.56,4.41,10.51,4.41h224.12c49.96,0,98.27-9.63,143.61-28.63,43.81-18.36,83.08-44.69,116.71-78.24,33.61-33.53,59.98-72.67,78.37-116.33,19.01-45.12,28.64-93.17,28.64-142.81s-9.72-97.68-28.88-142.97c-18.5-43.74-44.99-83.02-78.72-116.76-33.73-33.73-73.02-60.22-116.76-78.72C465.01,9.72,416.91,0,367.33,0H144.68ZM29.46,152.93L128.48,51.03V455.48c0,8.13,6.59,14.73,14.73,14.73h224.12c56.73,0,102.88-46.15,102.88-102.88s-46.15-102.88-102.88-102.88h-73.42v-102.77h73.42c17.17,0,34.01,2.09,50.25,6.15,1.62,.41,3.24,.83,4.85,1.28,2.42,.67,4.82,1.38,7.2,2.13,31.02,9.82,59.45,27,83.11,50.67,26.1,26.1,44.31,57.97,53.46,92.74,1.49,5.66,2.74,11.4,3.74,17.2,.29,1.66,.55,3.32,.8,4.99,1.48,10.01,2.23,20.19,2.23,30.49s-.75,20.48-2.23,30.49c-.25,1.67-.51,3.33-.8,4.99-1,5.8-2.25,11.54-3.74,17.2-9.15,34.77-27.36,66.65-53.46,92.74-23.67,23.67-52.09,40.86-83.11,50.67-2.39,.76-4.79,1.47-7.2,2.13-1.61,.44-3.23,.87-4.85,1.28-16.23,4.06-33.08,6.15-50.25,6.15H29.46V152.93Zm264.45,140.98h73.42c40.48,0,73.42,32.94,73.42,73.42s-32.94,73.42-73.42,73.42h-73.42v-146.84Zm384.96,204.79c-16.9,40.12-41.13,76.09-72.02,106.91-30.92,30.85-67.02,55.05-107.29,71.93-41.71,17.48-86.19,26.34-132.22,26.34H149.39l-99.57-101.44H367.33c31.73,0,62.53-6.22,91.52-18.48,28-11.84,53.14-28.79,74.73-50.38,6.75-6.75,13.04-13.84,18.86-21.26,12.82-16.32,23.37-34.22,31.51-53.47,7.66-18.12,12.97-36.95,15.87-56.26,1.74-11.59,2.61-23.36,2.61-35.26s-.87-23.67-2.61-35.26c-2.9-19.32-8.2-38.14-15.87-56.26-8.14-19.25-18.7-37.15-31.51-53.47-5.83-7.42-12.12-14.51-18.86-21.26-21.59-21.59-46.73-38.54-74.73-50.38-28.99-12.26-59.79-18.48-91.52-18.48h-88.15c-8.13,0-14.73,6.59-14.73,14.73V440.75h-106.51V29.46h209.39c45.61,0,89.85,8.93,131.5,26.55,40.23,17.02,76.37,41.39,107.4,72.42,31.04,31.04,55.4,67.17,72.42,107.4,17.62,41.64,26.55,85.89,26.55,131.5s-8.86,89.89-26.33,131.37Z"/>
+          </g>
+        </svg>
+      </a>
+   </main>
+   <hr></hr>
+   <p id="footer">
+     <a href="https://datadesk.eco/">Data Desk</a> produces investigative research and analysis on the global oil and gas industry for NGOs, think tanks and media organisations. This is a research notebook, a format we use to share findings and data, powered by <a href="https://observablehq.com/notebook-kit/">Observable</a>.
+   </p>
+  </body>
+</html>

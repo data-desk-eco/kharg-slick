@@ -1,0 +1,12 @@
+docs/.observable
+node_modules
+.DS_Store
+**/.DS_Store
+data/last_updated.json
+data/scenes_cache/
+data/infrastructure.json
+.venv
+__pycache__
+*.pyc
+.claude/
+*.eml
