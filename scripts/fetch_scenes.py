@@ -86,7 +86,10 @@ MAPSTAND_LAYERS = {
     "floatingfacility": "mps_mapping_floatingfacility",
 }
 
-# Catalogue search AOI — bounding box covering all per-scene render framings.
+# Catalogue search AOI — a tight bbox around Kharg used purely to discover
+# intersecting scenes; the actual render framing is computed separately and
+# can be wider than this without affecting scene discovery (the S2 T39RVN
+# tile and the S1 IW swaths are much larger than this bbox).
 CATALOG_AOI = dict(west=50.00, south=28.75, east=50.45, north=29.40)
 # Mapstand fetch spans the whole Persian Gulf so the map can show the spill
 # in regional infrastructure context. Tiled fetch handles the area.
@@ -95,9 +98,11 @@ MAPSTAND_TILE_M = 200_000  # 200 km tiles in EPSG:3857
 
 # The render AOI is derived programmatically from the union of detected slick
 # polygons plus Kharg Island, padded outwards — so every scene is framed
-# consistently around the actual observed extent of the spill.
+# consistently around the actual observed extent of the spill. The pad is
+# generous because the optical sheen on calm days extends well beyond the
+# SAR-thresholded core polygons that define the union.
 KHARG_LON, KHARG_LAT = 50.32, 29.25
-AOI_PAD_DEG = 0.025  # ~2.5 km
+AOI_PAD_DEG = 0.15  # ~15 km
 
 START = "2026-05-04T00:00:00.000Z"
 END = (datetime.now(timezone.utc).replace(hour=23, minute=59, second=59).strftime("%Y-%m-%dT%H:%M:%S.000Z"))
