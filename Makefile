@@ -3,6 +3,7 @@
 build:
 	@echo "{\"date\": \"$$(gh api /repos/:owner/:repo/commits?per_page=1 --jq '.[0].commit.committer.date' 2>/dev/null || git log -1 --format=%cI)\"}" > data/last_updated.json
 	yarn build
+	uv run scripts/inject_meta.py
 
 preview:
 	yarn preview
