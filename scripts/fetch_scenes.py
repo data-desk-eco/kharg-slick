@@ -597,6 +597,16 @@ def segment_s1(s3, item: dict, cache: Path) -> list[dict]:
         geom = shapely_shape(geom_dict)
         if geom.area < 0.5e6:
             continue
+        # Near-calm wind makes the sea surface itself look slick-like in SAR —
+        # the same physics that lets oil dampen capillary waves (smoothing →
+        # specular returns → dark pixels) applies to any low-roughness water.
+        # A single contiguous detection larger than 250 km² exceeds the entire
+        # peak extent of this incident (max plausible single polygon ~115 km²
+        # on 6 May) and is almost certainly calm-wind contamination — reject
+        # the whole scene's segmentation rather than poison the impact map.
+        if geom.area > 250e6:
+            print(f"  ! aborting segmentation: {geom.area/1e6:.0f} km² polygon — likely calm-wind contamination")
+            return []
         geom = geom.simplify(80, preserve_topology=True)
         geom_wgs = shapely_transform(to_wgs, geom)
         # Spatial filter — the slick originates at Kharg (50.32°E, 29.25°N)
