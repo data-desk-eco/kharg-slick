@@ -4,13 +4,13 @@
 
   <script id="header" type="text/markdown">
     # May 2026 Kharg oil slick
-    *13 May 2026*
+    *19 May 2026*
   </script>
 
   <script id="intro" type="text/markdown">
-    On 8 May 2026, [Reuters reported](https://www.reuters.com/world/middle-east/suspected-oil-spill-seen-satellite-images-near-irans-kharg-island-export-hub-2026-05-08/) on a suspected oil spill at Iran's main crude export terminal at Kharg Island, based on initial analysis by Data Desk and the [Conflict and Environment Observatory (CEOBS)](https://ceobs.org/). This briefing reviews the full Copernicus Sentinel-2 (optical) and Sentinel-1 (radar) record between 6 and 13 May 2026 to track the spill's progression.
+    On 8 May 2026, [Reuters reported](https://www.reuters.com/world/middle-east/suspected-oil-spill-seen-satellite-images-near-irans-kharg-island-export-hub-2026-05-08/) on a suspected oil spill at Iran's main crude export terminal at Kharg Island, based on initial analysis by Data Desk and the [Conflict and Environment Observatory (CEOBS)](https://ceobs.org/). This briefing reviews the full Copernicus Sentinel-2 (optical) and Sentinel-1 (radar) record between 6 and 18 May 2026 to track the spill's progression.
 
-    In summary: a coherent oil slick is first visible on 6 May, by which point the spill is already several hours old. It expands to roughly 25 km of dark, oil-dampened water south of the island by 8 May, breaks up and drifts a further 30–50 km south through 9 May, and on 11 May a displaced sheen is still clearly visible in Sentinel-2 imagery around 55 km south of the island despite heavy cloud cover closer in. As of 13 May, Sentinel-1 radar shows oil-dampened filaments still strung out across this same southern band, a week after the spill began. For automated, continuous tracking of slicks of this kind, SkyTruth's [Cerulean](https://cerulean.skytruth.org/) platform is a useful complementary resource.
+    In summary: a coherent oil slick is first visible on 6 May, by which point the spill is already several hours old. It expands to roughly 25 km of dark, oil-dampened water south of the island by 8 May, breaks up and drifts a further 30–50 km south through 9 May, and on 11 May a displaced sheen is still clearly visible in Sentinel-2 imagery around 55 km south of the island despite heavy cloud cover closer in. From 13 May, Sentinel-1 radar resolves oil-dampened filaments strung out across this same southern band, and as of the 18 May pass — almost two weeks after the initial sighting — a compact cluster of remnant slicks totalling around 6 km² is still detectable some 45 km southwest of Kharg. For automated, continuous tracking of slicks of this kind, SkyTruth's [Cerulean](https://cerulean.skytruth.org/) platform is a useful complementary resource.
 
     ### Satellite passes
 
@@ -21,6 +21,8 @@
     - **[9 May, 02:38 UTC](#9-may-02-38-utc-drift-south)** — Sentinel-1D (radar)
     - **[11 May, 07:16 UTC](#11-may-07-16-utc-residual-sheen)** — Sentinel-2B (optical)
     - **[13 May, 14:41 UTC](#13-may-14-41-utc-fragments-still-trackable)** — Sentinel-1D (radar)
+    - **[14 May, 02:39 UTC](#14-may-02-39-utc-wider-footprint-calmer-winds)** — Sentinel-1A (radar)
+    - **[18 May, 14:42 UTC](#18-may-14-42-utc-fragments-persisting)** — Sentinel-1A (radar)
 
     ---
   </script>
@@ -28,7 +30,7 @@
   <script id="impact-map-h" type="text/markdown">
     ## Impact map
 
-    Spill extent across the Sentinel-1 radar passes and the 11 May Sentinel-2 sheen trace (dashed where SAR was unavailable), set against the wider Persian Gulf and its oil and gas infrastructure. Polygons are coloured by pass in chronological order. The 9 May fragments sit ~40 km south of Kharg, in shipping lanes used by tankers entering and leaving the terminal; by 11 May, a bright sheen band has tracked ~55 km south; and on 13 May Sentinel-1 radar resolves oil-dampened filaments along that same southern band, indicating the slick is still present a week after it began.
+    Spill extent across the Sentinel-1 radar passes and the 11 May Sentinel-2 sheen trace (dashed where SAR was unavailable), set against the wider Persian Gulf and its oil and gas infrastructure. Polygons are coloured by pass in chronological order. The 9 May fragments sit ~40 km south of Kharg, in shipping lanes used by tankers entering and leaving the terminal; by 11 May, a bright sheen band has tracked ~55 km south; on 13 May Sentinel-1 resolves oil-dampened filaments along the same southern band; and on 18 May, a compact cluster of dark patches totalling ~6 km² remains detectable ~45 km southwest of Kharg, almost two weeks after the initial sighting.
   </script>
 
   <script id="overview-map-html" type="text/html">
@@ -271,6 +273,30 @@
     <figure style="max-width:100%">
       <img src="assets/scenes/2026-05-13_S1D_004AD4.png" width="100%" />
       <figcaption>Sentinel-1D, 13 May 2026, 14:41 UTC. © ESA/Copernicus.</figcaption>
+    </figure>
+  </script>
+
+  <script id="14may-s1-h" type="text/markdown">
+    ## 14 May, 02:39 UTC — wider footprint, calmer winds
+
+    The next morning's descending radar pass shows long, sinuous dark filaments stretched across 28.7–28.95°N — visually consistent with the slick continuing to drift south and dissipate. Background winds elsewhere in the scene are noticeably lighter than on prior passes, producing extensive low-roughness sea patches that mimic the SAR signature of oil; the largest contiguous dark area in the scene exceeds the threshold above which our automated segmenter declines to commit to a slick interpretation. The 14 May polygons are therefore omitted from the impact map, but the raw imagery is shown below.
+  </script>
+  <script id="14may-s1" type="text/html">
+    <figure style="max-width:100%">
+      <img src="assets/scenes/2026-05-14_S1A_081FEA.png" width="100%" />
+      <figcaption>Sentinel-1A, 14 May 2026, 02:39 UTC. © ESA/Copernicus.</figcaption>
+    </figure>
+  </script>
+
+  <script id="18may-s1-h" type="text/markdown">
+    ## 18 May, 14:42 UTC — fragments persisting
+
+    Twelve days after the initial sighting, an unambiguous Sentinel-1 radar pass — with steady wind across the rest of the scene producing a uniform bright background — still resolves a small cluster of dark patches roughly 45 km southwest of Kharg, totalling about 6 km². Their compact, well-defined geometry, and persistence long after weathering and dispersion would have erased a single small release, is consistent either with progressive break-up of the original spill, or with continuing low-level discharge from the source.
+  </script>
+  <script id="18may-s1" type="text/html">
+    <figure style="max-width:100%">
+      <img src="assets/scenes/2026-05-18_S1A_082235.png" width="100%" />
+      <figcaption>Sentinel-1A, 18 May 2026, 14:42 UTC. © ESA/Copernicus.</figcaption>
     </figure>
   </script>
 
